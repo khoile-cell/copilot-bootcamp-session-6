@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import TodoForm from './components/TodoForm';
 import TodoList from './components/TodoList';
 import ThemeToggle from './components/ThemeToggle';
 import ConfirmDialog from './components/ConfirmDialog';
 import TodoService from './services/todoService';
+import { isOverdue } from './utils/dateUtils';
 import './App.css';
 
 function App() {
@@ -21,6 +22,11 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingTodoId, setDeletingTodoId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Calculate count of overdue todos
+  const overdueCount = useMemo(() => {
+    return todos.filter(todo => isOverdue(todo)).length;
+  }, [todos]);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -118,7 +124,7 @@ function App() {
         <div className="header-content">
           <h1 className="app-title">
             <span className="app-icon">🎃</span>
-            My Todos
+            My Todos{overdueCount > 0 && ` (${overdueCount} overdue)`}
           </h1>
           <ThemeToggle theme={theme} onToggle={handleToggleTheme} />
         </div>

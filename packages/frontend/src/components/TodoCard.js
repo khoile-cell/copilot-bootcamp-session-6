@@ -107,7 +107,7 @@ function TodoCard({ todo, onToggle, onEdit, onDelete, isLoading }) {
   }
 
   return (
-    <div className={`todo-card ${todo.completed ? 'completed' : ''}`}>
+    <div className={`todo-card ${todo.completed ? 'completed' : ''} ${todo.isOverdue ? 'todo-card--overdue' : ''}`}>
       <input
         type="checkbox"
         checked={todo.completed === 1}
@@ -118,7 +118,14 @@ function TodoCard({ todo, onToggle, onEdit, onDelete, isLoading }) {
       />
 
       <div className="todo-content">
-        <h3 className="todo-title">{todo.title}</h3>
+        <h3 className="todo-title">
+          {todo.title}
+          {todo.isOverdue && (
+            <span className="overdue-indicator" role="img" aria-label="Overdue">
+              🕐
+            </span>
+          )}
+        </h3>
         {todo.dueDate && (
           <p className="todo-due-date">
             Due: {formatDate(todo.dueDate)}

@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import TodoCard from './TodoCard';
+import { isOverdue, sortTodos } from '../utils/dateUtils';
 
 function TodoList({ todos, onToggle, onEdit, onDelete, isLoading }) {
-  if (todos.length === 0) {
+  // Compute isOverdue property and sort todos (overdue first, then by dates)
+  const sortedTodos = useMemo(() => {
+    // Add isOverdue property to each todo
+    const todosWithOverdue = todos.map(todo => ({
+      ...todo,
+      isOverdue: isOverdue(todo)
+    }));
+    
+    // Sort: overdue first (oldest due date), then non-overdue (newest creation date)
+    return sortTodos(todosWithOverdue);
+  }, [todos]);
+
+  if (sortedTodos.length === 0) {
     return (
       <div className="todo-list empty-state">
         <p className="empty-state-message">
@@ -14,7 +27,7 @@ function TodoList({ todos, onToggle, onEdit, onDelete, isLoading }) {
 
   return (
     <div className="todo-list">
-      {todos.map((todo) => (
+      {sortedTodos.map((todo) => (
         <TodoCard
           key={todo.id}
           todo={todo}

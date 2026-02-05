@@ -334,6 +334,34 @@ p {
   color: var(--success-color);
 }
 
+/* Overdue Todo Styling */
+.todo-card--overdue {
+  border: 2px solid var(--danger-color);
+  border-left-width: 4px;
+  background-color: rgba(198, 40, 40, 0.03);
+}
+
+[data-theme="dark"] .todo-card--overdue {
+  background-color: rgba(239, 83, 80, 0.05);
+}
+
+.overdue-indicator {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 18px;
+  vertical-align: middle;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 .todo-checkbox {
   width: 20px;
   height: 20px;

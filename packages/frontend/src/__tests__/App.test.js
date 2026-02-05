@@ -232,4 +232,349 @@ describe('App Component', () => {
     fireEvent.click(themToggleAfter);
     expect(localStorage.getItem('todoAppTheme')).toBe('light');
   });
+
+  // Tests for User Story 3: Overdue Count Summary
+  describe('Overdue Count in Header', () => {
+    test('displays overdue count when count is greater than 0', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Overdue 1', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' },
+              { id: 2, title: 'Overdue 2', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-02T00:00:00Z' },
+              { id: 3, title: 'Normal Todo', dueDate: null, completed: 0, createdAt: '2025-11-03T00:00:00Z' }
+            ])
+          );
+        })
+      );
+      
+      render(<App />);
+      
+      await waitFor(() => {
+        expect(screen.getByText(/2 overdue/i)).toBeInTheDocument();
+      });
+    });
+
+    test('hides overdue count when no overdue todos', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Future Todo', dueDate: tomorrow.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' },
+              { id: 2, title: 'No Date Todo', dueDate: null, completed: 0, createdAt: '2025-11-02T00:00:00Z' }
+            ])
+          );
+        })
+      );
+      
+      render(<App />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Future Todo')).toBeInTheDocument();
+      });
+      
+      // Should show just "My Todos" without overdue count
+      expect(screen.getByText('My Todos')).toBeInTheDocument();
+      expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument();
+    });
+
+    test('decreases overdue count when overdue todo is completed', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Past Due Task', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' }
+            ])
+          );
+        }),
+        rest.patch('/api/todos/:id/toggle', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              id: parseInt(req.params.id),
+              title: 'Past Due Task',
+              dueDate: yesterday.toISOString(),
+              completed: 1,
+              createdAt: '2025-11-01T00:00:00Z'
+            })
+          );
+        })
+      );
+      
+      render(<App />);
+      
+      // Initially should show 1 overdue in header
+      await waitFor(() => {
+        expect(screen.getByText(/1 overdue/i)).toBeInTheDocument();
+      });
+      
+      // Complete the todo
+      const checkbox = screen.getByRole('checkbox');
+      fireEvent.click(checkbox);
+      
+      // Overdue count should disappear from header
+      await waitFor(() => {
+        const header = screen.getByRole('heading', { level: 1 });
+        expect(header.textContent).not.toMatch(/\d+ overdue/i);
+      });
+    });
+
+    test('increases overdue count when overdue todo is added', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json([]));
+        }),
+        rest.post('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(201),
+            ctx.json({
+              id: 1,
+              title: 'New Overdue Todo',
+              dueDate: yesterday.toISOString(),
+              completed: 0,
+              createdAt: new Date().toISOString()
+            })
+          );
+        })
+      );
+      
+      render(<App />);
+      
+      // Initially no overdue count
+      await waitFor(() => {
+        expect(screen.getByText(/No todos yet/)).toBeInTheDocument();
+      });
+      
+      // Add an overdue todo
+      const titleInput = screen.getByPlaceholderText('Add a new todo...');
+      const dueDateInput = screen.getByLabelText(/Due date/i);
+      const addButton = screen.getByRole('button', { name: /Add Todo/ });
+      
+      fireEvent.change(titleInput, { target: { value: 'New Overdue Todo' } });
+      fireEvent.change(dueDateInput, { target: { value: yesterday.toISOString().split('T')[0] } });
+      fireEvent.click(addButton);
+      
+      // Should show "(1 overdue)" in header
+      await waitFor(() => {
+        expect(screen.getByText(/1 overdue/i)).toBeInTheDocument();
+      });
+    });
+
+    test('uses correct format "My Todos (X overdue)"', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Overdue 1', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' },
+              { id: 2, title: 'Overdue 2', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-02T00:00:00Z' },
+              { id: 3, title: 'Overdue 3', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-03T00:00:00Z' }
+            ])
+          );
+        })
+      );
+      
+      render(<App />);
+      
+      await waitFor(() => {
+        const header = screen.getByRole('heading', { level: 1 });
+        expect(header.textContent).toMatch(/My Todos.*\(3 overdue\)/);
+      });
+    });
+  });
+
+  // Integration Tests: All Features Together
+  describe('Integration: All Overdue Features', () => {
+    test('all 3 features work together (visual + grouping + count)', async () => {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Normal Future', dueDate: tomorrow.toISOString(), completed: 0, createdAt: '2025-11-03T00:00:00Z' },
+              { id: 2, title: 'Recent Overdue', dueDate: oneDayAgo.toISOString(), completed: 0, createdAt: '2025-11-02T00:00:00Z' },
+              { id: 3, title: 'Old Overdue', dueDate: threeDaysAgo.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' }
+            ])
+          );
+        })
+      );
+      
+      const { container } = render(<App />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Old Overdue')).toBeInTheDocument();
+      });
+      
+      // Feature 3: Count shows 2 overdue
+      expect(screen.getByText(/2 overdue/i)).toBeInTheDocument();
+      
+      // Feature 2: Grouping - overdue todos are first and sorted by oldest due date
+      const cards = Array.from(container.querySelectorAll('.todo-card'));
+      const titles = cards.map(card => card.querySelector('.todo-title')?.textContent || '');
+      
+      expect(titles[0]).toContain('Old Overdue'); // Oldest overdue first
+      expect(titles[1]).toContain('Recent Overdue'); // Newer overdue second
+      expect(titles[2]).toContain('Normal Future'); // Non-overdue last
+      
+      // Feature 1: Visual indicators on overdue todos
+      expect(cards[0]).toHaveClass('todo-card--overdue');
+      expect(cards[1]).toHaveClass('todo-card--overdue');
+      expect(cards[2]).not.toHaveClass('todo-card--overdue');
+      
+      // Visual: Clock icon present on overdue
+      const overdueIcons = screen.getAllByLabelText('Overdue');
+      expect(overdueIcons).toHaveLength(2);
+    });
+
+    test('completing overdue todo updates visual, position, and count', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Overdue Task', dueDate: yesterday.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' },
+              { id: 2, title: 'Normal Task', dueDate: tomorrow.toISOString(), completed: 0, createdAt: '2025-11-02T00:00:00Z' }
+            ])
+          );
+        }),
+        rest.patch('/api/todos/:id/toggle', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              id: parseInt(req.params.id),
+              title: 'Overdue Task',
+              dueDate: yesterday.toISOString(),
+              completed: 1,
+              createdAt: '2025-11-01T00:00:00Z'
+            })
+          );
+        })
+      );
+      
+      const { container } = render(<App />);
+      
+      await waitFor(() => {
+        expect(screen.getByText(/1 overdue/i)).toBeInTheDocument();
+      });
+      
+      // Verify overdue styling and position before completion
+      let cards = Array.from(container.querySelectorAll('.todo-card'));
+      expect(cards[0]).toHaveClass('todo-card--overdue');
+      expect(cards[0].querySelector('.todo-title')?.textContent).toContain('Overdue Task');
+      
+      // Complete the overdue todo
+      const checkboxes = screen.getAllByRole('checkbox');
+      fireEvent.click(checkboxes[0]);
+      
+      await waitFor(() => {
+        // Count should update to 0
+        const header = screen.getByRole('heading', { level: 1 });
+        expect(header.textContent).not.toMatch(/\d+ overdue/i);
+      });
+      
+      // Visual styling should be removed
+      cards = Array.from(container.querySelectorAll('.todo-card'));
+      expect(cards[0]).not.toHaveClass('todo-card--overdue');
+      expect(screen.queryByLabelText('Overdue')).not.toBeInTheDocument();
+    });
+
+    test('adding new overdue todo updates visual, position, and count', async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      server.use(
+        rest.get('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json([
+              { id: 1, title: 'Normal Task', dueDate: tomorrow.toISOString(), completed: 0, createdAt: '2025-11-01T00:00:00Z' }
+            ])
+          );
+        }),
+        rest.post('/api/todos', (req, res, ctx) => {
+          return res(
+            ctx.status(201),
+            ctx.json({
+              id: 2,
+              title: 'New Overdue Task',
+              dueDate: yesterday.toISOString(),
+              completed: 0,
+              createdAt: new Date().toISOString()
+            })
+          );
+        })
+      );
+      
+      const { container } = render(<App />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Normal Task')).toBeInTheDocument();
+      });
+      
+      // Initially no overdue count
+      let header = screen.getByRole('heading', { level: 1 });
+      expect(header.textContent).not.toMatch(/overdue/i);
+      
+      // Add an overdue todo
+      const titleInput = screen.getByPlaceholderText('Add a new todo...');
+      const dueDateInput = screen.getByLabelText(/Due date/i);
+      const addButton = screen.getByRole('button', { name: /Add Todo/ });
+      
+      fireEvent.change(titleInput, { target: { value: 'New Overdue Task' } });
+      fireEvent.change(dueDateInput, { target: { value: yesterday.toISOString().split('T')[0] } });
+      fireEvent.click(addButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('New Overdue Task')).toBeInTheDocument();
+      });
+      
+      // Count should update
+      header = screen.getByRole('heading', { level: 1 });
+      expect(header.textContent).toMatch(/1 overdue/i);
+      
+      // Visual styling should be present
+      const cards = Array.from(container.querySelectorAll('.todo-card'));
+      
+      // Overdue todo should be first
+      expect(cards[0].querySelector('.todo-title')?.textContent).toContain('New Overdue Task');
+      expect(cards[0]).toHaveClass('todo-card--overdue');
+      expect(screen.getByLabelText('Overdue')).toBeInTheDocument();
+    });
+  });
 });
